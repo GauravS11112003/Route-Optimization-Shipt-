@@ -1,0 +1,361 @@
+# 🚀 Shipt Route Optimizer
+
+A full-stack web application for optimizing grocery delivery routes using intelligent assignment algorithms. Built with Go and React, this demo showcases Shipt's approach to logistics optimization.
+
+![Tech Stack](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![TailwindCSS](https://img.shields.io/badge/Tailwind-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+
+## ✨ Features
+
+### Core Optimization
+- **Smart Route Optimization**: Nearest-neighbor clustering algorithm
+- **Real Driving Routes**: Actual road-based routing (toggle between real routes vs. straight-line)
+- **Capacity Management**: Intelligent assignment respecting shopper capacity limits
+
+### Analytics Dashboard
+- **System Performance**: Optimization score, efficiency metrics, resource utilization
+- **Shopper Analytics**: Individual performance, capacity utilization, time estimates
+- **Order Insights**: Distribution analysis, density mapping, time window breakdown
+- **Cost & Impact**: Fuel cost estimates, CO₂ savings calculations
+
+### Visualization
+- **Interactive Maps**: Powered by Leaflet.js with real route geometry
+- **Live Updates**: Real-time route visualization as optimization runs
+- **Performance Metrics**: Comprehensive statistics and KPIs
+- **Modern UI**: Sleek interface with Shipt branding and smooth animations
+
+## 🏗️ Architecture
+
+```
+shipt-route-optimizer/
+├── backend/                 # Go REST API
+│   ├── cmd/
+│   │   └── main.go         # Application entry point
+│   ├── internal/
+│   │   ├── api/            # HTTP handlers
+│   │   ├── models/         # Data structures
+│   │   ├── optimizer/      # Route optimization logic
+│   │   └── data/           # Mock data generation
+│   ├── go.mod
+│   └── Makefile
+│
+└── frontend/               # React SPA
+    ├── src/
+    │   ├── components/     # React components
+    │   ├── api/            # API client
+    │   ├── App.jsx
+    │   └── main.jsx
+    ├── package.json
+    └── vite.config.js
+```
+
+## 🛠️ Tech Stack
+
+### Backend
+- **Go 1.21+** - High-performance backend
+- **Gin** - HTTP web framework
+- **CORS** - Cross-origin resource sharing
+- **OpenRouteService** - Real driving route calculation (optional)
+
+### Frontend
+- **React 18** - UI library
+- **Vite** - Build tool & dev server
+- **TailwindCSS** - Utility-first CSS
+- **Leaflet.js** - Interactive maps
+- **Framer Motion** - Smooth animations
+- **Lucide React** - Icon library
+
+## 🚦 Getting Started
+
+### Prerequisites
+
+- **Go 1.21+** ([Download](https://go.dev/dl/))
+- **Node.js 18+** ([Download](https://nodejs.org/))
+- **npm or yarn**
+
+### Installation & Setup
+
+#### 1️⃣ Clone the Repository
+
+```bash
+cd "Route Optimizer"
+```
+
+#### 2️⃣ Start the Backend (Port 8080)
+
+Open a terminal and run:
+
+```bash
+cd backend
+go mod download
+go run cmd/main.go
+```
+
+Or using Make:
+
+```bash
+cd backend
+make run
+```
+
+You should see:
+```
+🚀 Shipt Route Optimizer Backend starting on :8080
+```
+
+#### 3️⃣ Start the Frontend (Port 5173)
+
+Open a **new terminal** and run:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The app will open automatically at **http://localhost:5173**
+
+## 📖 Usage Guide
+
+1. **Load Sample Data**
+   - Click the "Load Sample Data" button
+   - 5 shoppers and 20 orders will appear on the map around Birmingham, AL
+
+2. **Toggle Real Routes** (Optional)
+   - Enable the "Real Routes" checkbox in the header
+   - Routes will use actual driving directions instead of straight lines
+   - Note: Uses OpenRouteService API (may take a few seconds)
+
+3. **Optimize Routes**
+   - Click "Optimize Routes"
+   - Watch routes animate on the map
+   - Analytics dashboard automatically opens on the right
+
+4. **Explore Analytics**
+   - **Overview Tab**: System-wide metrics, optimization score, costs
+   - **Shoppers Tab**: Individual shopper performance and efficiency
+   - **Orders Tab**: Order distribution and density analysis
+   - Click "Analytics" button to toggle dashboard visibility
+
+5. **Explore the Map**
+   - Green markers = Shoppers
+   - Orange markers = Orders
+   - Solid/dashed lines = Optimized routes (solid = real routes, dashed = straight lines)
+   - Click markers for detailed information
+
+6. **View Metrics**
+   - Total distance & duration
+   - Optimization score (0-100)
+   - Capacity utilization per shopper
+   - Time estimates for each route
+   - Fuel costs & CO₂ impact
+
+## 🧮 Algorithm Details
+
+### Optimization Strategy
+
+The application uses a **nearest-neighbor clustering** approach:
+
+1. **Distance Calculation**: Haversine formula for accurate geospatial distances
+2. **Assignment**: Each order assigned to the nearest available shopper
+3. **Capacity Management**: Respects individual shopper capacity limits
+4. **Route Ordering**: Orders sorted by proximity for efficient routing
+
+### Distance Formula
+
+```go
+func HaversineDistance(lat1, lng1, lat2, lng2 float64) float64 {
+    const earthRadius = 6371.0 // kilometers
+    // ... haversine implementation
+}
+```
+
+## 🌐 API Endpoints
+
+### `GET /api/health`
+Health check endpoint
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "service": "shipt-route-optimizer"
+}
+```
+
+### `GET /api/sample-data`
+Returns mock orders and shoppers
+
+**Response:**
+```json
+{
+  "orders": [...],
+  "shoppers": [...]
+}
+```
+
+### `POST /api/optimize`
+Basic route optimization (legacy)
+
+**Request:**
+```json
+{
+  "orders": [...],
+  "shoppers": [...]
+}
+```
+
+**Response:**
+```json
+{
+  "assignments": [...],
+  "totalDistanceBefore": 20.8,
+  "totalDistanceAfter": 11.2
+}
+```
+
+### `POST /api/optimize-analytics` ⭐ New!
+Advanced optimization with comprehensive analytics
+
+**Request:**
+```json
+{
+  "orders": [...],
+  "shoppers": [...],
+  "useRealRoutes": true
+}
+```
+
+**Response:**
+```json
+{
+  "optimization": {
+    "assignments": [...],
+    "totalDistanceBefore": 20.8,
+    "totalDistanceAfter": 11.2
+  },
+  "analytics": {
+    "system": {
+      "optimizationScore": 87.5,
+      "totalDistance": 45.3,
+      "totalDuration": 125.5,
+      "estimatedFuelCost": 6.80,
+      "co2Saved": 2.72,
+      ...
+    },
+    "shoppers": [
+      {
+        "shopperId": "S1",
+        "ordersAssigned": 4,
+        "totalDistance": 11.2,
+        "totalDuration": 48.5,
+        "capacityUtilization": 80.0,
+        "efficiency": 4.94,
+        ...
+      }
+    ],
+    "orders": {...},
+    "routeGeometries": [...]
+  }
+}
+```
+
+## 🎨 Design Philosophy
+
+- **Shipt Brand Colors**: Primary green (#00C389) throughout
+- **Clean & Modern**: Minimal design with smooth transitions
+- **Responsive**: Works on desktop and tablet screens
+- **Accessible**: Clear labels and semantic HTML
+
+## 🔧 Development Commands
+
+### Backend
+
+```bash
+# Run server
+make run
+
+# Build binary
+make build
+
+# Run tests
+make test
+
+# Clean build artifacts
+make clean
+```
+
+### Frontend
+
+```bash
+# Development server
+npm run dev
+
+# Production build
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## 📦 Building for Production
+
+### Backend
+
+```bash
+cd backend
+make build
+./bin/shipt-route-optimizer
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm run build
+# Deploy the 'dist' folder to your hosting service
+```
+
+## 🐛 Troubleshooting
+
+### Backend won't start
+
+- Ensure port 8080 is available
+- Check Go version: `go version` (needs 1.21+)
+- Run `go mod download` to fetch dependencies
+
+### Frontend can't connect to backend
+
+- Verify backend is running on port 8080
+- Check CORS configuration in `backend/cmd/main.go`
+- Ensure `frontend/src/api/optimizer.js` points to correct URL
+
+### Map not displaying
+
+- Check browser console for errors
+- Ensure Leaflet CSS is loaded
+- Verify internet connection (map tiles load externally)
+
+## 🤝 Contributing
+
+This is a demo project. For production use:
+
+- Add authentication & authorization
+- Implement persistent data storage
+- Add comprehensive test coverage
+- Optimize for large-scale datasets
+- Add real-time updates via WebSockets
+
+## 📄 License
+
+This project is for demonstration purposes.
+
+## 👏 Acknowledgments
+
+Built for Shipt as a showcase of modern full-stack development practices.
+
+---
+
+**Built with ❤️ using Go and React**
+
