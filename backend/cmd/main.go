@@ -6,9 +6,12 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file (ignore error if file doesn't exist)
+	_ = godotenv.Load()
 	r := gin.Default()
 
 	// Configure CORS for frontend

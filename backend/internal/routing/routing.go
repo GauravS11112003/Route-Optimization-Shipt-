@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -60,7 +61,11 @@ func GetRoute(fromLat, fromLng, toLat, toLng float64) (*RouteSegment, error) {
 	}
 	
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImNjNDljNzM1NWE1ODQyYmI5NjAyNGU4MDhmMTlkZTFmIiwiaCI6Im11cm11cjY0In0=")
+	
+	// Add API key from environment variable if available
+	if apiKey := os.Getenv("OPENROUTE_API_KEY"); apiKey != "" {
+		req.Header.Set("Authorization", apiKey)
+	}
 	
 	// Make request with timeout
 	client := &http.Client{Timeout: 10 * time.Second}

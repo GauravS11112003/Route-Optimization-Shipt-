@@ -84,7 +84,20 @@ shipt-route-optimizer/
 cd "Route Optimizer"
 ```
 
-#### 2️⃣ Start the Backend (Port 8080)
+#### 2️⃣ Configure Environment Variables
+
+Copy the example environment file and add your API keys:
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+Edit `.env` and add your OpenRouteService API key (optional but recommended for real routing):
+- Get a free API key at: https://openrouteservice.org/dev/#/signup
+- Update the `OPENROUTE_API_KEY` value in `.env`
+
+#### 3️⃣ Start the Backend (Port 8080)
 
 Open a terminal and run:
 
@@ -106,7 +119,7 @@ You should see:
 🚀 Shipt Route Optimizer Backend starting on :8080
 ```
 
-#### 3️⃣ Start the Frontend (Port 5173)
+#### 4️⃣ Start the Frontend (Port 5173)
 
 Open a **new terminal** and run:
 
