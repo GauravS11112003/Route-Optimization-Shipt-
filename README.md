@@ -2,6 +2,8 @@
 
 A full-stack web application for optimizing grocery delivery routes using intelligent assignment algorithms. Built with Go and React, this demo showcases Shipt's approach to logistics optimization.
 
+![Route Optimizer Dashboard](image.png)
+
 ![Tech Stack](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
 ![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
