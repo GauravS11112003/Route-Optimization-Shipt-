@@ -101,14 +101,20 @@ Edit `.env` and add your OpenRouteService API key (optional but recommended for 
 
 Open a terminal and run:
 
+**Option A: Using PowerShell (Recommended for Windows - loads .env automatically)**
+```powershell
+cd backend
+.\run.ps1
+```
+
+**Option B: Using Go directly**
 ```bash
 cd backend
 go mod download
 go run cmd/main.go
 ```
 
-Or using Make:
-
+**Option C: Using Make**
 ```bash
 cd backend
 make run
@@ -116,8 +122,12 @@ make run
 
 You should see:
 ```
+✓ Loaded .env file successfully
+✓ OpenRouteService API Key loaded (120 chars)
 🚀 Shipt Route Optimizer Backend starting on :8080
 ```
+
+**Note:** If you see "⚠ WARNING: OPENROUTE_API_KEY not found", the .env file wasn't loaded. Real routing will fallback to straight lines.
 
 #### 4️⃣ Start the Frontend (Port 5173)
 
