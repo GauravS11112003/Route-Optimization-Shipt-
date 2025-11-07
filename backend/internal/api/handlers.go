@@ -2,19 +2,62 @@ package api
 
 import (
 	"net/http"
+	"os"
 	"shipt-route-optimizer/internal/data"
 	"shipt-route-optimizer/internal/models"
 	"shipt-route-optimizer/internal/optimizer"
+	"shipt-route-optimizer/internal/routing"
 
 	"github.com/gin-gonic/gin"
 )
 
 // HealthCheck returns API health status
 func HealthCheck(c *gin.Context) {
+	apiKeySet := os.Getenv("OPENROUTE_API_KEY") != ""
 	c.JSON(http.StatusOK, gin.H{
-		"status": "ok",
-		"service": "shipt-route-optimizer",
+		"status":    "ok",
+		"service":   "shipt-route-optimizer",
+		"apiKeySet": apiKeySet,
 	})
+}
+
+// TestRouting tests the OpenRouteService API
+func TestRouting(c *gin.Context) {
+	// Test route from Birmingham coordinates  
+	segment, err := routing.GetRoute(33.5200, -86.8100, 33.5186, -86.8104)
+	
+	result := gin.H{
+		"error":          nil,
+		"pointCount":     0,
+		"distance":       0.0,
+		"duration":       0.0,
+		"apiKeySet":      os.Getenv("OPENROUTE_API_KEY") != "",
+		"apiKeyLength":   len(os.Getenv("OPENROUTE_API_KEY")),
+		"usingFallback":  false,
+	}
+	
+	if err != nil {
+		result["error"] = err.Error()
+	}
+	
+	if segment != nil {
+		result["pointCount"] = len(segment.Geometry)
+		result["distance"] = segment.Distance
+		result["duration"] = segment.Duration
+		// If only 2 points, it's using fallback straight line
+		result["usingFallback"] = len(segment.Geometry) == 2
+		if len(segment.Geometry) <= 5 {
+			result["geometry"] = segment.Geometry
+		} else {
+			result["geometrySample"] = gin.H{
+				"first": segment.Geometry[0],
+				"last":  segment.Geometry[len(segment.Geometry)-1],
+				"total": len(segment.Geometry),
+			}
+		}
+	}
+	
+	c.JSON(http.StatusOK, result)
 }
 
 // GetSampleData returns mock orders and shoppers

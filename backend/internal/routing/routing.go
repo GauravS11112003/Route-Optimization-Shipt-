@@ -38,8 +38,20 @@ type openRouteServiceResponse struct {
 
 // GetRoute fetches actual driving route from OpenRouteService
 func GetRoute(fromLat, fromLng, toLat, toLng float64) (*RouteSegment, error) {
-	// Using public OpenRouteService API (free tier, no key required for basic usage)
+	// Using public OpenRouteService API
 	url := "https://api.openrouteservice.org/v2/directions/driving-car"
+	
+	// Log API key status (first 10 chars only for security)
+	apiKey := os.Getenv("OPENROUTE_API_KEY")
+	if apiKey != "" {
+		keyPreview := apiKey
+		if len(apiKey) > 10 {
+			keyPreview = apiKey[:10] + "..."
+		}
+		println("✓ API Key loaded:", keyPreview)
+	} else {
+		println("⚠ No API Key found in environment")
+	}
 	
 	// Prepare request body
 	body := map[string]interface{}{
@@ -72,14 +84,21 @@ func GetRoute(fromLat, fromLng, toLat, toLng float64) (*RouteSegment, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		// Fallback to haversine if routing service fails
+		println("⚠ OpenRouteService HTTP request failed:", err.Error())
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
 		// Fallback if API fails
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		println("⚠ OpenRouteService API error - Status:", resp.StatusCode)
+		println("   Response body:", string(bodyBytes))
+		println("   Request URL:", url)
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
+	
+	println("✓ OpenRouteService API success - Status:", resp.StatusCode)
 	
 	// Parse response
 	bodyBytes, err := io.ReadAll(resp.Body)
