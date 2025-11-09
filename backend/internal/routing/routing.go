@@ -3,6 +3,7 @@ package routing
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -24,41 +25,41 @@ type RouteSegment struct {
 }
 
 // OpenRouteServiceResponse represents the API response
+// The geometry can be either a string (encoded) or an array of coordinates
 type openRouteServiceResponse struct {
 	Routes []struct {
 		Summary struct {
 			Distance float64 `json:"distance"` // in meters
 			Duration float64 `json:"duration"` // in seconds
 		} `json:"summary"`
-		Geometry struct {
-			Coordinates [][]float64 `json:"coordinates"`
-		} `json:"geometry"`
+		Geometry interface{} `json:"geometry"` // Can be string or coordinate array
 	} `json:"routes"`
 }
 
-// GetRoute fetches actual driving route from OpenRouteService
-func GetRoute(fromLat, fromLng, toLat, toLng float64) (*RouteSegment, error) {
+// GetRouteWithKey fetches actual driving route from OpenRouteService using provided API key
+func GetRouteWithKey(fromLat, fromLng, toLat, toLng float64, apiKey string) (*RouteSegment, error) {
 	// Using public OpenRouteService API
-	url := "https://api.openrouteservice.org/v2/directions/driving-car"
+	url := "https://api.openrouteservice.org/v2/directions/driving-car/json"
 	
-	// Log API key status (first 10 chars only for security)
-	apiKey := os.Getenv("OPENROUTE_API_KEY")
+	// Log API key status
 	if apiKey != "" {
 		keyPreview := apiKey
 		if len(apiKey) > 10 {
 			keyPreview = apiKey[:10] + "..."
 		}
-		println("✓ API Key loaded:", keyPreview)
+		println("✓ Using API Key from frontend:", keyPreview, "(", len(apiKey), "chars)")
 	} else {
-		println("⚠ No API Key found in environment")
+		println("⚠ No API Key provided from frontend")
+		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
 	
-	// Prepare request body
+	// Prepare request body - request JSON format (not encoded)
 	body := map[string]interface{}{
 		"coordinates": [][]float64{
 			{fromLng, fromLat}, // OpenRouteService uses [lng, lat] format
 			{toLng, toLat},
 		},
+		"geometry": true, // Explicitly request geometry
 	}
 	
 	jsonData, err := json.Marshal(body)
@@ -73,11 +74,7 @@ func GetRoute(fromLat, fromLng, toLat, toLng float64) (*RouteSegment, error) {
 	}
 	
 	req.Header.Set("Content-Type", "application/json")
-	
-	// Add API key from environment variable if available
-	if apiKey := os.Getenv("OPENROUTE_API_KEY"); apiKey != "" {
-		req.Header.Set("Authorization", apiKey)
-	}
+	req.Header.Set("Authorization", apiKey) // Use provided API key
 	
 	// Make request with timeout
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -103,36 +100,95 @@ func GetRoute(fromLat, fromLng, toLat, toLng float64) (*RouteSegment, error) {
 	// Parse response
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
+		println("❌ Error reading response body:", err.Error())
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
+	}
+	
+	// Debug: Show response sample
+	if len(bodyBytes) > 200 {
+		println("📦 Response sample:", string(bodyBytes[:200])+"...")
+	} else {
+		println("📦 Full response:", string(bodyBytes))
 	}
 	
 	var orsResp openRouteServiceResponse
 	if err := json.Unmarshal(bodyBytes, &orsResp); err != nil {
+		println("❌ Error unmarshaling JSON:", err.Error())
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
 	
 	if len(orsResp.Routes) == 0 {
+		println("⚠️ No routes in response")
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
 	
 	route := orsResp.Routes[0]
+	println("📏 Route distance:", route.Summary.Distance, "meters")
+	println("⏱️ Route duration:", route.Summary.Duration, "seconds")
 	
-	// Convert geometry to RoutePoints
+	// Parse geometry - it can be a map (GeoJSON), array, or string (encoded)
 	geometry := []RoutePoint{}
-	for _, coord := range route.Geometry.Coordinates {
-		if len(coord) >= 2 {
-			geometry = append(geometry, RoutePoint{
-				Lat: coord[1],
-				Lng: coord[0],
-			})
+	
+	switch geom := route.Geometry.(type) {
+	case map[string]interface{}:
+		// GeoJSON format: {"coordinates": [[lng, lat], ...]}
+		if coords, ok := geom["coordinates"].([]interface{}); ok {
+			println("🗺️ GeoJSON format detected, coordinate count:", len(coords))
+			for i, coordInterface := range coords {
+				if coord, ok := coordInterface.([]interface{}); ok && len(coord) >= 2 {
+					lng, _ := coord[0].(float64)
+					lat, _ := coord[1].(float64)
+					geometry = append(geometry, RoutePoint{Lat: lat, Lng: lng})
+					if i < 3 {
+						println(fmt.Sprintf("   Coord %d: [%.6f, %.6f]", i, lat, lng))
+					}
+				}
+			}
 		}
+	case string:
+		// Encoded polyline format - decode it
+		println("🗺️ Encoded polyline format:", geom[:50]+"...")
+		println("🔓 Decoding polyline...")
+		geometry = decodePolyline(geom)
+		println("✅ Decoded to", len(geometry), "points")
+		if len(geometry) > 0 {
+			println(fmt.Sprintf("   First point: [%.6f, %.6f]", geometry[0].Lat, geometry[0].Lng))
+			if len(geometry) > 1 {
+				println(fmt.Sprintf("   Last point: [%.6f, %.6f]", geometry[len(geometry)-1].Lat, geometry[len(geometry)-1].Lng))
+			}
+		}
+	case []interface{}:
+		// Direct array of coordinates
+		println("🗺️ Direct array format, coordinate count:", len(geom))
+		for i, coordInterface := range geom {
+			if coord, ok := coordInterface.([]interface{}); ok && len(coord) >= 2 {
+				lng, _ := coord[0].(float64)
+				lat, _ := coord[1].(float64)
+				geometry = append(geometry, RoutePoint{Lat: lat, Lng: lng})
+				if i < 3 {
+					println(fmt.Sprintf("   Coord %d: [%.6f, %.6f]", i, lat, lng))
+				}
+			}
+		}
+	default:
+		println("❌ Unknown geometry format:", fmt.Sprintf("%T", geom))
+		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
+	
+	println("✅ Final geometry has", len(geometry), "points")
 	
 	return &RouteSegment{
 		Distance: route.Summary.Distance / 1000.0, // convert meters to km
 		Duration: route.Summary.Duration / 60.0,   // convert seconds to minutes
 		Geometry: geometry,
 	}, nil
+}
+
+// GetRoute fetches actual driving route from OpenRouteService (legacy - uses env var)
+func GetRoute(fromLat, fromLng, toLat, toLng float64) (*RouteSegment, error) {
+	// For backward compatibility, check environment variable
+	apiKey := os.Getenv("OPENROUTE_API_KEY")
+	return GetRouteWithKey(fromLat, fromLng, toLat, toLng, apiKey)
 }
 
 // getFallbackRoute creates a simple straight line route using haversine
@@ -224,5 +280,74 @@ func BatchGetRoutes(pairs [][]RoutePoint) ([]*RouteSegment, error) {
 	}
 	
 	return results, nil
+}
+
+// decodePolyline decodes an encoded polyline string into a slice of RoutePoints
+// This uses the standard Google Polyline encoding algorithm
+func decodePolyline(encoded string) []RoutePoint {
+	var points []RoutePoint
+	index := 0
+	lat := 0
+	lng := 0
+	
+	for index < len(encoded) {
+		// Decode latitude
+		var shift uint = 0
+		var result int = 0
+		var b int
+		
+		for {
+			if index >= len(encoded) {
+				break
+			}
+			b = int(encoded[index]) - 63
+			index++
+			result |= (b & 0x1f) << shift
+			shift += 5
+			if b < 0x20 {
+				break
+			}
+		}
+		
+		var dlat int
+		if (result & 1) != 0 {
+			dlat = ^(result >> 1)
+		} else {
+			dlat = result >> 1
+		}
+		lat += dlat
+		
+		// Decode longitude
+		shift = 0
+		result = 0
+		
+		for {
+			if index >= len(encoded) {
+				break
+			}
+			b = int(encoded[index]) - 63
+			index++
+			result |= (b & 0x1f) << shift
+			shift += 5
+			if b < 0x20 {
+				break
+			}
+		}
+		
+		var dlng int
+		if (result & 1) != 0 {
+			dlng = ^(result >> 1)
+		} else {
+			dlng = result >> 1
+		}
+		lng += dlng
+		
+		points = append(points, RoutePoint{
+			Lat: float64(lat) / 1e5,
+			Lng: float64(lng) / 1e5,
+		})
+	}
+	
+	return points
 }
 

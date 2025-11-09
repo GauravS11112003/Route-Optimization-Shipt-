@@ -61,13 +61,35 @@ function MapBounds({ orders, shoppers, assignments }) {
 export default function MapView({ orders, shoppers, assignments, routeGeometries = [] }) {
     const defaultCenter = [33.5186, -86.8104]; // Birmingham, AL
 
+    console.log('🗺️ MapView - routeGeometries:', routeGeometries.length);
+    console.log('🗺️ MapView - assignments:', assignments.length);
+
+    // Debug: Check actual geometry structure
+    if (routeGeometries.length > 0) {
+        console.log('📍 First geometry sample:', {
+            shopperId: routeGeometries[0].shopperId,
+            pointsCount: routeGeometries[0].points?.length,
+            firstPoint: routeGeometries[0].points?.[0],
+            lastPoint: routeGeometries[0].points?.[routeGeometries[0].points?.length - 1],
+            allPoints: routeGeometries[0].points?.slice(0, 5) // First 5 points
+        });
+    }
+
     // Build route lines from assignments or use real geometries
     const routeLines = routeGeometries.length > 0
-        ? routeGeometries.map((geometry, idx) => ({
-            coords: geometry.points,
-            color: routeColors[idx % routeColors.length],
-            shopperId: geometry.shopperId,
-        }))
+        ? routeGeometries.map((geometry, idx) => {
+            const pointCount = geometry.points?.length || 0;
+            console.log(`Route ${idx}: ${pointCount} points for shopper ${geometry.shopperId}`);
+            if (pointCount > 0) {
+                console.log(`  First point: [${geometry.points[0][0]}, ${geometry.points[0][1]}]`);
+                console.log(`  Last point: [${geometry.points[pointCount - 1][0]}, ${geometry.points[pointCount - 1][1]}]`);
+            }
+            return {
+                coords: geometry.points,
+                color: routeColors[idx % routeColors.length],
+                shopperId: geometry.shopperId,
+            };
+        })
         : assignments.map((assignment, idx) => {
             const shopper = shoppers.find(s => s.id === assignment.shopperId);
             if (!shopper) return null;
@@ -148,6 +170,8 @@ export default function MapView({ orders, shoppers, assignments, routeGeometries
                             weight: 4,
                             opacity: 0.8,
                             dashArray: routeGeometries.length > 0 ? null : '10, 10',
+                            lineCap: 'round',
+                            lineJoin: 'round',
                         }}
                     />
                 ))}
@@ -156,14 +180,29 @@ export default function MapView({ orders, shoppers, assignments, routeGeometries
             {/* Legend */}
             {(shoppers.length > 0 || orders.length > 0) && (
                 <div className="absolute bottom-6 right-6 bg-white rounded-lg shadow-lg p-4 z-[1000]">
-                    <div className="text-sm font-semibold mb-2 text-gray-700">Legend</div>
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className="w-4 h-4 rounded-full bg-shipt-green"></div>
-                        <span className="text-xs text-gray-600">Shoppers</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full bg-orange-500"></div>
-                        <span className="text-xs text-gray-600">Orders</span>
+                    <div className="text-sm font-semibold mb-3 text-gray-700">Legend</div>
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full bg-shipt-green"></div>
+                            <span className="text-xs text-gray-600">Shoppers</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full bg-orange-500"></div>
+                            <span className="text-xs text-gray-600">Orders</span>
+                        </div>
+                        {assignments.length > 0 && (
+                            <>
+                                <div className="border-t border-gray-200 my-2"></div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-0.5 bg-shipt-green"></div>
+                                    <span className="text-xs text-gray-600">Real roads</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-0.5 bg-gray-400 border-dashed border-t-2 border-gray-400"></div>
+                                    <span className="text-xs text-gray-600">Straight line</span>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

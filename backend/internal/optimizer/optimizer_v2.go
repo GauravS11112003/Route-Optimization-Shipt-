@@ -9,12 +9,20 @@ import (
 )
 
 // OptimizeWithAnalytics performs route optimization and calculates detailed analytics
-func OptimizeWithAnalytics(orders []models.Order, shoppers []models.Shopper, useRealRoutes bool) (*models.OptimizeResponse, *models.AnalyticsResponse) {
-	// Standard optimization
-	assignments, totalBefore, totalAfter := Optimize(orders, shoppers)
+func OptimizeWithAnalytics(orders []models.Order, shoppers []models.Shopper, useRealRoutes bool, algorithm string, apiKey string) (*models.OptimizeResponse, *models.AnalyticsResponse) {
+	var assignments []models.Assignment
+	var totalBefore, totalAfter float64
+
+	// Choose algorithm
+	switch algorithm {
+	case "astar":
+		assignments, totalBefore, totalAfter = OptimizeAStar(orders, shoppers)
+	default: // "nearest-neighbor" or empty
+		assignments, totalBefore, totalAfter = Optimize(orders, shoppers)
+	}
 	
-	// Calculate analytics
-	analytics := calculateAnalytics(orders, shoppers, assignments, useRealRoutes)
+	// Calculate analytics (pass API key)
+	analytics := calculateAnalytics(orders, shoppers, assignments, useRealRoutes, apiKey)
 	
 	response := &models.OptimizeResponse{
 		Assignments:         assignments,
@@ -26,11 +34,11 @@ func OptimizeWithAnalytics(orders []models.Order, shoppers []models.Shopper, use
 }
 
 // calculateAnalytics generates comprehensive analytics
-func calculateAnalytics(orders []models.Order, shoppers []models.Shopper, assignments []models.Assignment, useRealRoutes bool) *models.AnalyticsResponse {
+func calculateAnalytics(orders []models.Order, shoppers []models.Shopper, assignments []models.Assignment, useRealRoutes bool, apiKey string) *models.AnalyticsResponse {
 	shopperAnalytics := calculateShopperAnalytics(orders, shoppers, assignments, useRealRoutes)
 	orderAnalytics := calculateOrderAnalytics(orders, assignments)
 	systemAnalytics := calculateSystemAnalytics(shoppers, orders, assignments, shopperAnalytics)
-	routeGeometries := calculateRouteGeometries(orders, shoppers, assignments, useRealRoutes)
+	routeGeometries := calculateRouteGeometries(orders, shoppers, assignments, useRealRoutes, apiKey)
 	
 	return &models.AnalyticsResponse{
 		System:          systemAnalytics,
@@ -218,8 +226,12 @@ func calculateSystemAnalytics(shoppers []models.Shopper, orders []models.Order, 
 }
 
 // calculateRouteGeometries generates actual road paths for each route
-func calculateRouteGeometries(orders []models.Order, shoppers []models.Shopper, assignments []models.Assignment, useRealRoutes bool) []models.RouteGeometry {
+func calculateRouteGeometries(orders []models.Order, shoppers []models.Shopper, assignments []models.Assignment, useRealRoutes bool, apiKey string) []models.RouteGeometry {
 	geometries := []models.RouteGeometry{}
+	
+	println("🗺️  calculateRouteGeometries called with useRealRoutes:", useRealRoutes)
+	println("📊 Assignments count:", len(assignments))
+	println("🔑 API Key provided:", len(apiKey), "chars")
 	
 	// Create order map
 	orderMap := make(map[string]models.Order)
@@ -233,7 +245,7 @@ func calculateRouteGeometries(orders []models.Order, shoppers []models.Shopper, 
 		shopperMap[shopper.ID] = shopper
 	}
 	
-	for _, assignment := range assignments {
+	for idx, assignment := range assignments {
 		shopper := shopperMap[assignment.ShopperID]
 		points := [][]float64{}
 		
@@ -244,27 +256,35 @@ func calculateRouteGeometries(orders []models.Order, shoppers []models.Shopper, 
 			waypoints = append(waypoints, routing.RoutePoint{Lat: order.Lat, Lng: order.Lng})
 		}
 		
+		println("  Route", idx, "for shopper", assignment.ShopperID, "has", len(waypoints), "waypoints")
+		
 		if useRealRoutes && len(waypoints) > 1 {
 			// Get real route (with fallback to straight lines)
+			println("    🛣️  Fetching real routes with provided API key...")
 			for i := 0; i < len(waypoints)-1; i++ {
-				segment, err := routing.GetRoute(
+				segment, err := routing.GetRouteWithKey(
 					waypoints[i].Lat, waypoints[i].Lng,
 					waypoints[i+1].Lat, waypoints[i+1].Lng,
+					apiKey, // Use API key from frontend
 				)
 				
 				if err == nil && segment != nil {
 					// Add route geometry points
+					println("      Segment", i, "returned", len(segment.Geometry), "points")
 					for _, pt := range segment.Geometry {
 						points = append(points, []float64{pt.Lat, pt.Lng})
 					}
 				} else {
 					// Fallback to straight line
+					println("      ⚠️ Segment", i, "failed, using fallback (err:", err != nil, ")")
 					points = append(points, []float64{waypoints[i].Lat, waypoints[i].Lng})
 					points = append(points, []float64{waypoints[i+1].Lat, waypoints[i+1].Lng})
 				}
 			}
+			println("    Total points for route:", len(points))
 		} else {
 			// Simple straight lines
+			println("    Using straight lines (useRealRoutes=", useRealRoutes, ")")
 			for _, wp := range waypoints {
 				points = append(points, []float64{wp.Lat, wp.Lng})
 			}

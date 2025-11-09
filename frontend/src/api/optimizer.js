@@ -30,7 +30,7 @@ export async function optimizeRoutes(data) {
     }
 }
 
-export async function optimizeWithAnalytics(data, useRealRoutes = false) {
+export async function optimizeWithAnalytics(data, useRealRoutes = false, algorithm = "nearest-neighbor", apiKey = "") {
     try {
         const res = await fetch(`${BASE_URL}/optimize-analytics`, {
             method: "POST",
@@ -38,7 +38,9 @@ export async function optimizeWithAnalytics(data, useRealRoutes = false) {
             body: JSON.stringify({
                 orders: data.orders,
                 shoppers: data.shoppers,
-                useRealRoutes: useRealRoutes
+                useRealRoutes: useRealRoutes,
+                algorithm: algorithm,
+                apiKey: apiKey  // Pass API key to backend
             }),
         });
         if (!res.ok) {

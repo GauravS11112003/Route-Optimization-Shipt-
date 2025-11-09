@@ -104,6 +104,8 @@ func OptimizeWithAnalytics(c *gin.Context) {
 		Orders        []models.Order   `json:"orders"`
 		Shoppers      []models.Shopper `json:"shoppers"`
 		UseRealRoutes bool             `json:"useRealRoutes"`
+		Algorithm     string           `json:"algorithm"` // "nearest-neighbor" or "astar"
+		ApiKey        string           `json:"apiKey"`    // OpenRouteService API key from frontend
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -121,17 +123,30 @@ func OptimizeWithAnalytics(c *gin.Context) {
 		return
 	}
 
+	// Default to nearest-neighbor if not specified
+	if req.Algorithm == "" {
+		req.Algorithm = "nearest-neighbor"
+	}
+
+	println("📡 Received API key from frontend:", len(req.ApiKey), "chars")
+	if req.UseRealRoutes && req.ApiKey == "" {
+		println("⚠️ Real routes requested but no API key provided")
+	}
+
 	// Run optimization with analytics
 	optimizeResponse, analyticsResponse := optimizer.OptimizeWithAnalytics(
 		req.Orders,
 		req.Shoppers,
 		req.UseRealRoutes,
+		req.Algorithm,
+		req.ApiKey, // Pass API key to optimizer
 	)
 
 	// Combine both responses
 	response := gin.H{
 		"optimization": optimizeResponse,
 		"analytics":    analyticsResponse,
+		"algorithm":    req.Algorithm,
 	}
 
 	c.JSON(http.StatusOK, response)

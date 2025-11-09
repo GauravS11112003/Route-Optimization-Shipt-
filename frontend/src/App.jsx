@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Info, X, BarChart3, Route as RouteIcon } from 'lucide-react';
+import { Info, X, BarChart3, Route as RouteIcon, Zap, Settings, ExternalLink } from 'lucide-react';
 import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
 import SummaryPanel from './components/SummaryPanel';
@@ -18,7 +18,20 @@ function App() {
     const [error, setError] = useState(null);
     const [showAbout, setShowAbout] = useState(false);
     const [showAnalytics, setShowAnalytics] = useState(false);
-    const [useRealRoutes, setUseRealRoutes] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
+    const [useRealRoutes, setUseRealRoutes] = useState(true);
+    const [algorithm, setAlgorithm] = useState('astar'); // 'nearest-neighbor' or 'astar'
+    const [apiKey, setApiKey] = useState('');
+    const [apiKeyInput, setApiKeyInput] = useState('');
+
+    // Load API key from localStorage on mount
+    useEffect(() => {
+        const savedKey = localStorage.getItem('openroute_api_key');
+        if (savedKey) {
+            setApiKey(savedKey);
+            setApiKeyInput(savedKey);
+        }
+    }, []);
 
     const handleLoadSampleData = async () => {
         setLoading(true);
@@ -48,11 +61,37 @@ function App() {
         setError(null);
 
         try {
-            const result = await optimizeWithAnalytics({ orders, shoppers }, useRealRoutes);
+            // Check if real routes are enabled but no API key is set
+            if (useRealRoutes && !apiKey) {
+                setError('⚠️ API key required for real routes. Click Settings to add your OpenRouteService API key.');
+                setShowSettings(true);
+                setLoading(false);
+                return;
+            }
+
+            const result = await optimizeWithAnalytics({ orders, shoppers }, useRealRoutes, algorithm, apiKey);
+            console.log('🔍 API Response:', result);
+            console.log('📍 Route Geometries:', result.analytics.routeGeometries);
+            console.log('✅ Use Real Routes:', useRealRoutes);
+
             setAssignments(result.optimization.assignments);
             setStats(result.optimization);
             setAnalytics(result.analytics);
-            setRouteGeometries(result.analytics.routeGeometries || []);
+            const geometries = result.analytics.routeGeometries || [];
+            console.log('🗺️ Setting geometries:', geometries.length, 'routes');
+            if (geometries.length > 0) {
+                const firstRoutePoints = geometries[0].points?.length || 0;
+                console.log('📊 First route has', firstRoutePoints, 'points');
+
+                // Alert user if routes are falling back to straight lines
+                if (firstRoutePoints < 10 && useRealRoutes) {
+                    setError('⚠️ Real routes unavailable - API key may be invalid. Check your OpenRouteService API key in Settings.');
+                } else if (firstRoutePoints >= 10) {
+                    console.log('✅ Using real road geometries!');
+                    setError(null); // Clear any previous errors
+                }
+            }
+            setRouteGeometries(geometries);
         } catch (err) {
             setError('Failed to optimize routes. Make sure the backend is running.');
             console.error(err);
@@ -88,15 +127,48 @@ function App() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors">
+                        {/* Algorithm Selection */}
+                        <div className="flex items-center gap-2 bg-white border-2 border-gray-200 rounded-lg p-1">
+                            <button
+                                onClick={() => setAlgorithm('nearest-neighbor')}
+                                className={
+                                    algorithm === 'nearest-neighbor'
+                                        ? "flex items-center gap-1.5 px-3 py-1.5 bg-shipt-green text-white rounded-md transition-all text-sm font-medium"
+                                        : "flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-md transition-all text-sm font-medium"
+                                }
+                            >
+                                <RouteIcon className="w-3.5 h-3.5" />
+                                <span>Greedy</span>
+                            </button>
+                            <button
+                                onClick={() => setAlgorithm('astar')}
+                                className={
+                                    algorithm === 'astar'
+                                        ? "flex items-center gap-1.5 px-3 py-1.5 bg-shipt-green text-white rounded-md transition-all text-sm font-medium"
+                                        : "flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-md transition-all text-sm font-medium"
+                                }
+                            >
+                                <Zap className="w-3.5 h-3.5" />
+                                <span>A* Search</span>
+                            </button>
+                        </div>
+
+                        {/* Real Routes Toggle */}
+                        <label className={
+                            useRealRoutes
+                                ? "flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
+                                : "flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors"
+                        }>
                             <input
                                 type="checkbox"
                                 checked={useRealRoutes}
                                 onChange={(e) => setUseRealRoutes(e.target.checked)}
                                 className="w-4 h-4 text-shipt-green rounded focus:ring-shipt-green"
                             />
-                            <RouteIcon className="w-4 h-4 text-gray-600" />
-                            <span className="text-sm font-medium text-gray-700">Real Routes</span>
+                            <RouteIcon className={useRealRoutes ? "w-4 h-4 text-green-600" : "w-4 h-4 text-gray-600"} />
+                            <span className={useRealRoutes ? "text-sm font-medium text-green-700" : "text-sm font-medium text-gray-700"}>
+                                Real Routes {useRealRoutes && "✓"}
+                            </span>
                         </label>
 
                         {analytics && (
@@ -112,6 +184,20 @@ function App() {
                                 <span className="text-sm font-medium">Analytics</span>
                             </button>
                         )}
+
+                        <button
+                            onClick={() => setShowSettings(true)}
+                            className={
+                                apiKey
+                                    ? "flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 hover:bg-green-100 rounded-lg transition-colors duration-200"
+                                    : "flex items-center gap-2 px-4 py-2 bg-orange-50 border border-orange-200 hover:bg-orange-100 rounded-lg transition-colors duration-200"
+                            }
+                        >
+                            <Settings className={apiKey ? "w-4 h-4 text-green-600" : "w-4 h-4 text-orange-600"} />
+                            <span className={apiKey ? "text-sm font-medium text-green-700" : "text-sm font-medium text-orange-700"}>
+                                {apiKey ? 'API Key ✓' : 'Settings'}
+                            </span>
+                        </button>
 
                         <button
                             onClick={() => setShowAbout(true)}
@@ -219,7 +305,8 @@ function App() {
                                 </p>
 
                                 <p className="leading-relaxed">
-                                    The application uses a <strong>nearest-neighbor clustering algorithm</strong> with
+                                    The application features two optimization algorithms: <strong>Greedy Nearest-Neighbor</strong> (fast, efficient)
+                                    and <strong>A* Search</strong> (optimal pathfinding with heuristics). Both work with
                                     real driving routes (via OpenRouteService) to efficiently assign delivery orders to available
                                     shoppers while minimizing total travel distance and time.
                                 </p>
@@ -242,7 +329,8 @@ function App() {
                                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
                                     <h3 className="font-semibold text-gray-800 mb-2">Features</h3>
                                     <ul className="space-y-1 text-sm">
-                                        <li>• Real driving routes vs. straight-line distance</li>
+                                        <li>• <strong>Dual algorithms</strong>: Greedy vs A* Search optimization</li>
+                                        <li>• <strong>Real driving routes</strong> following actual roads (enable "Real Routes")</li>
                                         <li>• Comprehensive analytics dashboard</li>
                                         <li>• Shopper performance & efficiency metrics</li>
                                         <li>• Capacity utilization tracking</li>
@@ -250,6 +338,15 @@ function App() {
                                         <li>• Cost & environmental impact</li>
                                         <li>• Interactive map with live updates</li>
                                     </ul>
+                                </div>
+
+                                <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
+                                    <h3 className="font-semibold text-gray-800 mb-2">🛣️ Real Routes Setup</h3>
+                                    <p className="text-xs text-gray-700 leading-relaxed">
+                                        The "Real Routes" toggle is now enabled by default. For best results, set up an
+                                        OpenRouteService API key (free) in the backend <code className="bg-amber-100 px-1 rounded">.env</code> file.
+                                        See <code className="bg-amber-100 px-1 rounded">ROUTING_SETUP.md</code> for details.
+                                    </p>
                                 </div>
                             </div>
 
@@ -260,6 +357,146 @@ function App() {
                                 >
                                     Got it!
                                 </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Settings Modal */}
+            <AnimatePresence>
+                {showSettings && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setShowSettings(false)}
+                        className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8"
+                        >
+                            <div className="flex items-start justify-between mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                                        Settings
+                                    </h2>
+                                    <div className="h-1 w-20 bg-shipt-green rounded"></div>
+                                </div>
+                                <button
+                                    onClick={() => setShowSettings(false)}
+                                    className="text-gray-400 hover:text-gray-600"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-6">
+                                {/* API Key Section */}
+                                <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
+                                    <div className="flex items-start gap-3 mb-4">
+                                        <RouteIcon className="w-6 h-6 text-blue-600 mt-1" />
+                                        <div className="flex-1">
+                                            <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                                                OpenRouteService API Key
+                                            </h3>
+                                            <p className="text-sm text-gray-600 mb-4">
+                                                Required for routes to follow actual roads instead of straight lines.
+                                                Get your <strong>FREE</strong> API key from OpenRouteService.
+                                            </p>
+
+                                            <a
+                                                href="https://openrouteservice.org/dev/#/signup"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium mb-4"
+                                            >
+                                                <ExternalLink className="w-4 h-4" />
+                                                Get Free API Key
+                                            </a>
+
+                                            <div className="mt-4">
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    API Key
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    value={apiKeyInput}
+                                                    onChange={(e) => setApiKeyInput(e.target.value)}
+                                                    placeholder="Paste your API key here (e.g., eyJvcmci...)"
+                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-shipt-green focus:border-transparent text-sm font-mono"
+                                                />
+                                                {apiKeyInput && (
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        Key length: {apiKeyInput.length} characters
+                                                        {apiKeyInput.length > 100 && ' ✓'}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="flex gap-3 mt-4">
+                                                <button
+                                                    onClick={() => {
+                                                        setApiKey(apiKeyInput);
+                                                        localStorage.setItem('openroute_api_key', apiKeyInput);
+                                                        setError(null);
+                                                        setShowSettings(false);
+                                                    }}
+                                                    disabled={!apiKeyInput}
+                                                    className="px-6 py-2 bg-shipt-green hover:bg-green-600 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    Save API Key
+                                                </button>
+                                                {apiKey && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setApiKey('');
+                                                            setApiKeyInput('');
+                                                            localStorage.removeItem('openroute_api_key');
+                                                        }}
+                                                        className="px-6 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-lg transition-colors"
+                                                    >
+                                                        Clear Key
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Instructions */}
+                                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                                    <h4 className="font-semibold text-gray-800 mb-3">How to use:</h4>
+                                    <ol className="space-y-2 text-sm text-gray-600">
+                                        <li className="flex gap-2">
+                                            <span className="font-semibold text-shipt-green">1.</span>
+                                            <span>Click "Get Free API Key" above to sign up at OpenRouteService</span>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="font-semibold text-shipt-green">2.</span>
+                                            <span>Copy your API key (starts with "eyJ" and is ~600 characters long)</span>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="font-semibold text-shipt-green">3.</span>
+                                            <span>Paste it in the field above and click "Save API Key"</span>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="font-semibold text-shipt-green">4.</span>
+                                            <span>Enable "Real Routes" toggle and optimize - routes will follow roads!</span>
+                                        </li>
+                                    </ol>
+
+                                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                        <p className="text-xs text-amber-800">
+                                            <strong>Note:</strong> Your API key is stored locally in your browser and sent directly to OpenRouteService.
+                                            It never passes through our servers.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </motion.div>
                     </motion.div>
