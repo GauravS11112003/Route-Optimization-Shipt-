@@ -63,31 +63,25 @@ function App() {
         try {
             // Check if real routes are enabled but no API key is set
             if (useRealRoutes && !apiKey) {
-                setError('⚠️ API key required for real routes. Click Settings to add your OpenRouteService API key.');
+                setError('API key required for real routes. Click Settings to add your OpenRouteService API key.');
                 setShowSettings(true);
                 setLoading(false);
                 return;
             }
 
             const result = await optimizeWithAnalytics({ orders, shoppers }, useRealRoutes, algorithm, apiKey);
-            console.log('🔍 API Response:', result);
-            console.log('📍 Route Geometries:', result.analytics.routeGeometries);
-            console.log('✅ Use Real Routes:', useRealRoutes);
 
             setAssignments(result.optimization.assignments);
             setStats(result.optimization);
             setAnalytics(result.analytics);
             const geometries = result.analytics.routeGeometries || [];
-            console.log('🗺️ Setting geometries:', geometries.length, 'routes');
             if (geometries.length > 0) {
                 const firstRoutePoints = geometries[0].points?.length || 0;
-                console.log('📊 First route has', firstRoutePoints, 'points');
 
                 // Alert user if routes are falling back to straight lines
                 if (firstRoutePoints < 10 && useRealRoutes) {
-                    setError('⚠️ Real routes unavailable - API key may be invalid. Check your OpenRouteService API key in Settings.');
+                    setError('Real routes unavailable - API key may be invalid. Check your OpenRouteService API key in Settings.');
                 } else if (firstRoutePoints >= 10) {
-                    console.log('✅ Using real road geometries!');
                     setError(null); // Clear any previous errors
                 }
             }
@@ -167,7 +161,7 @@ function App() {
                             />
                             <RouteIcon className={useRealRoutes ? "w-4 h-4 text-green-600" : "w-4 h-4 text-gray-600"} />
                             <span className={useRealRoutes ? "text-sm font-medium text-green-700" : "text-sm font-medium text-gray-700"}>
-                                Real Routes {useRealRoutes && "✓"}
+                                Real Routes
                             </span>
                         </label>
 
@@ -195,7 +189,7 @@ function App() {
                         >
                             <Settings className={apiKey ? "w-4 h-4 text-green-600" : "w-4 h-4 text-orange-600"} />
                             <span className={apiKey ? "text-sm font-medium text-green-700" : "text-sm font-medium text-orange-700"}>
-                                {apiKey ? 'API Key ✓' : 'Settings'}
+                                {apiKey ? 'API Key Set' : 'Settings'}
                             </span>
                         </button>
 
@@ -341,7 +335,7 @@ function App() {
                                 </div>
 
                                 <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
-                                    <h3 className="font-semibold text-gray-800 mb-2">🛣️ Real Routes Setup</h3>
+                                    <h3 className="font-semibold text-gray-800 mb-2">Real Routes Setup</h3>
                                     <p className="text-xs text-gray-700 leading-relaxed">
                                         The "Real Routes" toggle is now enabled by default. For best results, set up an
                                         OpenRouteService API key (free) in the backend <code className="bg-amber-100 px-1 rounded">.env</code> file.
@@ -433,7 +427,6 @@ function App() {
                                                 {apiKeyInput && (
                                                     <p className="text-xs text-gray-500 mt-2">
                                                         Key length: {apiKeyInput.length} characters
-                                                        {apiKeyInput.length > 100 && ' ✓'}
                                                     </p>
                                                 )}
                                             </div>

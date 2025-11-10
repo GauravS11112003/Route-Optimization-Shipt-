@@ -229,10 +229,6 @@ func calculateSystemAnalytics(shoppers []models.Shopper, orders []models.Order, 
 func calculateRouteGeometries(orders []models.Order, shoppers []models.Shopper, assignments []models.Assignment, useRealRoutes bool, apiKey string) []models.RouteGeometry {
 	geometries := []models.RouteGeometry{}
 	
-	println("🗺️  calculateRouteGeometries called with useRealRoutes:", useRealRoutes)
-	println("📊 Assignments count:", len(assignments))
-	println("🔑 API Key provided:", len(apiKey), "chars")
-	
 	// Create order map
 	orderMap := make(map[string]models.Order)
 	for _, order := range orders {
@@ -245,7 +241,7 @@ func calculateRouteGeometries(orders []models.Order, shoppers []models.Shopper, 
 		shopperMap[shopper.ID] = shopper
 	}
 	
-	for idx, assignment := range assignments {
+	for _, assignment := range assignments {
 		shopper := shopperMap[assignment.ShopperID]
 		points := [][]float64{}
 		
@@ -256,35 +252,28 @@ func calculateRouteGeometries(orders []models.Order, shoppers []models.Shopper, 
 			waypoints = append(waypoints, routing.RoutePoint{Lat: order.Lat, Lng: order.Lng})
 		}
 		
-		println("  Route", idx, "for shopper", assignment.ShopperID, "has", len(waypoints), "waypoints")
-		
 		if useRealRoutes && len(waypoints) > 1 {
 			// Get real route (with fallback to straight lines)
-			println("    🛣️  Fetching real routes with provided API key...")
 			for i := 0; i < len(waypoints)-1; i++ {
 				segment, err := routing.GetRouteWithKey(
 					waypoints[i].Lat, waypoints[i].Lng,
 					waypoints[i+1].Lat, waypoints[i+1].Lng,
-					apiKey, // Use API key from frontend
+					apiKey,
 				)
 				
 				if err == nil && segment != nil {
 					// Add route geometry points
-					println("      Segment", i, "returned", len(segment.Geometry), "points")
 					for _, pt := range segment.Geometry {
 						points = append(points, []float64{pt.Lat, pt.Lng})
 					}
 				} else {
 					// Fallback to straight line
-					println("      ⚠️ Segment", i, "failed, using fallback (err:", err != nil, ")")
 					points = append(points, []float64{waypoints[i].Lat, waypoints[i].Lng})
 					points = append(points, []float64{waypoints[i+1].Lat, waypoints[i+1].Lng})
 				}
 			}
-			println("    Total points for route:", len(points))
 		} else {
 			// Simple straight lines
-			println("    Using straight lines (useRealRoutes=", useRealRoutes, ")")
 			for _, wp := range waypoints {
 				points = append(points, []float64{wp.Lat, wp.Lng})
 			}

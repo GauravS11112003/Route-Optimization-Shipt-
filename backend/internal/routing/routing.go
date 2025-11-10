@@ -3,7 +3,6 @@ package routing
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -42,14 +41,7 @@ func GetRouteWithKey(fromLat, fromLng, toLat, toLng float64, apiKey string) (*Ro
 	url := "https://api.openrouteservice.org/v2/directions/driving-car/json"
 	
 	// Log API key status
-	if apiKey != "" {
-		keyPreview := apiKey
-		if len(apiKey) > 10 {
-			keyPreview = apiKey[:10] + "..."
-		}
-		println("✓ Using API Key from frontend:", keyPreview, "(", len(apiKey), "chars)")
-	} else {
-		println("⚠ No API Key provided from frontend")
+	if apiKey == "" {
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
 	
@@ -80,51 +72,30 @@ func GetRouteWithKey(fromLat, fromLng, toLat, toLng float64, apiKey string) (*Ro
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		// Fallback to haversine if routing service fails
-		println("⚠ OpenRouteService HTTP request failed:", err.Error())
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
-		// Fallback if API fails
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		println("⚠ OpenRouteService API error - Status:", resp.StatusCode)
-		println("   Response body:", string(bodyBytes))
-		println("   Request URL:", url)
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
-	
-	println("✓ OpenRouteService API success - Status:", resp.StatusCode)
 	
 	// Parse response
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		println("❌ Error reading response body:", err.Error())
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
-	}
-	
-	// Debug: Show response sample
-	if len(bodyBytes) > 200 {
-		println("📦 Response sample:", string(bodyBytes[:200])+"...")
-	} else {
-		println("📦 Full response:", string(bodyBytes))
 	}
 	
 	var orsResp openRouteServiceResponse
 	if err := json.Unmarshal(bodyBytes, &orsResp); err != nil {
-		println("❌ Error unmarshaling JSON:", err.Error())
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
 	
 	if len(orsResp.Routes) == 0 {
-		println("⚠️ No routes in response")
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
 	
 	route := orsResp.Routes[0]
-	println("📏 Route distance:", route.Summary.Distance, "meters")
-	println("⏱️ Route duration:", route.Summary.Duration, "seconds")
 	
 	// Parse geometry - it can be a map (GeoJSON), array, or string (encoded)
 	geometry := []RoutePoint{}
@@ -133,49 +104,29 @@ func GetRouteWithKey(fromLat, fromLng, toLat, toLng float64, apiKey string) (*Ro
 	case map[string]interface{}:
 		// GeoJSON format: {"coordinates": [[lng, lat], ...]}
 		if coords, ok := geom["coordinates"].([]interface{}); ok {
-			println("🗺️ GeoJSON format detected, coordinate count:", len(coords))
-			for i, coordInterface := range coords {
+			for _, coordInterface := range coords {
 				if coord, ok := coordInterface.([]interface{}); ok && len(coord) >= 2 {
 					lng, _ := coord[0].(float64)
 					lat, _ := coord[1].(float64)
 					geometry = append(geometry, RoutePoint{Lat: lat, Lng: lng})
-					if i < 3 {
-						println(fmt.Sprintf("   Coord %d: [%.6f, %.6f]", i, lat, lng))
-					}
 				}
 			}
 		}
 	case string:
 		// Encoded polyline format - decode it
-		println("🗺️ Encoded polyline format:", geom[:50]+"...")
-		println("🔓 Decoding polyline...")
 		geometry = decodePolyline(geom)
-		println("✅ Decoded to", len(geometry), "points")
-		if len(geometry) > 0 {
-			println(fmt.Sprintf("   First point: [%.6f, %.6f]", geometry[0].Lat, geometry[0].Lng))
-			if len(geometry) > 1 {
-				println(fmt.Sprintf("   Last point: [%.6f, %.6f]", geometry[len(geometry)-1].Lat, geometry[len(geometry)-1].Lng))
-			}
-		}
 	case []interface{}:
 		// Direct array of coordinates
-		println("🗺️ Direct array format, coordinate count:", len(geom))
-		for i, coordInterface := range geom {
+		for _, coordInterface := range geom {
 			if coord, ok := coordInterface.([]interface{}); ok && len(coord) >= 2 {
 				lng, _ := coord[0].(float64)
 				lat, _ := coord[1].(float64)
 				geometry = append(geometry, RoutePoint{Lat: lat, Lng: lng})
-				if i < 3 {
-					println(fmt.Sprintf("   Coord %d: [%.6f, %.6f]", i, lat, lng))
-				}
 			}
 		}
 	default:
-		println("❌ Unknown geometry format:", fmt.Sprintf("%T", geom))
 		return getFallbackRoute(fromLat, fromLng, toLat, toLng), nil
 	}
-	
-	println("✅ Final geometry has", len(geometry), "points")
 	
 	return &RouteSegment{
 		Distance: route.Summary.Distance / 1000.0, // convert meters to km

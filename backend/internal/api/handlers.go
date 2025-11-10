@@ -128,10 +128,6 @@ func OptimizeWithAnalytics(c *gin.Context) {
 		req.Algorithm = "nearest-neighbor"
 	}
 
-	println("📡 Received API key from frontend:", len(req.ApiKey), "chars")
-	if req.UseRealRoutes && req.ApiKey == "" {
-		println("⚠️ Real routes requested but no API key provided")
-	}
 
 	// Run optimization with analytics
 	optimizeResponse, analyticsResponse := optimizer.OptimizeWithAnalytics(

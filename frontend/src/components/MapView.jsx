@@ -61,12 +61,9 @@ function MapBounds({ orders, shoppers, assignments }) {
 export default function MapView({ orders, shoppers, assignments, routeGeometries = [] }) {
     const defaultCenter = [33.5186, -86.8104]; // Birmingham, AL
 
-    console.log('🗺️ MapView - routeGeometries:', routeGeometries.length);
-    console.log('🗺️ MapView - assignments:', assignments.length);
-
     // Debug: Check actual geometry structure
     if (routeGeometries.length > 0) {
-        console.log('📍 First geometry sample:', {
+        console.log('First geometry sample:', {
             shopperId: routeGeometries[0].shopperId,
             pointsCount: routeGeometries[0].points?.length,
             firstPoint: routeGeometries[0].points?.[0],

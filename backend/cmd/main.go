@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"os"
 	"path/filepath"
 	"shipt-route-optimizer/internal/api"
 
@@ -19,25 +18,11 @@ func main() {
 		filepath.Join("backend", ".env"), // From project root
 	}
 	
-	envLoaded := false
 	for _, envPath := range envLocations {
 		if err := godotenv.Load(envPath); err == nil {
-			log.Printf("✓ Loaded .env file from: %s\n", envPath)
-			envLoaded = true
+			log.Printf("Loaded .env file from: %s\n", envPath)
 			break
 		}
-	}
-	
-	if !envLoaded {
-		log.Println("⚠ Warning: .env file not found, using system environment variables")
-	}
-	
-	// Log API key status at startup
-	if apiKey := os.Getenv("OPENROUTE_API_KEY"); apiKey != "" {
-		log.Printf("✓ OpenRouteService API Key loaded (%d chars)\n", len(apiKey))
-	} else {
-		log.Println("⚠ WARNING: OPENROUTE_API_KEY not found in environment!")
-		log.Println("   To enable real routing, add your OpenRouteService API key to .env file")
 	}
 	
 	r := gin.Default()
@@ -59,7 +44,7 @@ func main() {
 		apiGroup.POST("/optimize-analytics", api.OptimizeWithAnalytics)
 	}
 
-	log.Println("🚀 Shipt Route Optimizer Backend starting on :8080")
+	log.Println("Shipt Route Optimizer Backend starting on :8080")
 	if err := r.Run(":8080"); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
