@@ -1,7 +1,7 @@
-# Shipt Route Optimizer - Backend Startup Script
+# Multi-Strategy Routing Engine - Backend Startup Script
 # This script sets the environment variable and starts the backend
 
-Write-Host "Starting Shipt Route Optimizer Backend..." -ForegroundColor Green
+Write-Host "Starting Multi-Strategy Routing Engine Backend..." -ForegroundColor Green
 Write-Host ""
 
 # Load .env file and set environment variables

@@ -1,6 +1,6 @@
 # 🚀 Quick Start Guide
 
-Get the Shipt Route Optimizer running in 2 minutes!
+Get the Multi-Strategy Routing Engine running in 2 minutes!
 
 ## Prerequisites Check
 
@@ -20,7 +20,7 @@ go mod download
 go run cmd/main.go
 ```
 
-✅ You should see: `🚀 Shipt Route Optimizer Backend starting on :8080`
+✅ You should see: `🚀 Multi-Strategy Routing Engine Backend starting on :8080`
 
 ## Step 2: Start Frontend (Terminal 2)
 

@@ -1,11 +1,13 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"shipt-route-optimizer/internal/data"
 	"shipt-route-optimizer/internal/models"
 	"shipt-route-optimizer/internal/optimizer"
+	"shipt-route-optimizer/internal/optimizer/hybrid"
 	"shipt-route-optimizer/internal/routing"
 
 	"github.com/gin-gonic/gin"
@@ -23,23 +25,23 @@ func HealthCheck(c *gin.Context) {
 
 // TestRouting tests the OpenRouteService API
 func TestRouting(c *gin.Context) {
-	// Test route from Birmingham coordinates  
+	// Test route from Birmingham coordinates
 	segment, err := routing.GetRoute(33.5200, -86.8100, 33.5186, -86.8104)
-	
+
 	result := gin.H{
-		"error":          nil,
-		"pointCount":     0,
-		"distance":       0.0,
-		"duration":       0.0,
-		"apiKeySet":      os.Getenv("OPENROUTE_API_KEY") != "",
-		"apiKeyLength":   len(os.Getenv("OPENROUTE_API_KEY")),
-		"usingFallback":  false,
+		"error":         nil,
+		"pointCount":    0,
+		"distance":      0.0,
+		"duration":      0.0,
+		"apiKeySet":     os.Getenv("OPENROUTE_API_KEY") != "",
+		"apiKeyLength":  len(os.Getenv("OPENROUTE_API_KEY")),
+		"usingFallback": false,
 	}
-	
+
 	if err != nil {
 		result["error"] = err.Error()
 	}
-	
+
 	if segment != nil {
 		result["pointCount"] = len(segment.Geometry)
 		result["distance"] = segment.Distance
@@ -56,7 +58,7 @@ func TestRouting(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	c.JSON(http.StatusOK, result)
 }
 
@@ -128,7 +130,6 @@ func OptimizeWithAnalytics(c *gin.Context) {
 		req.Algorithm = "nearest-neighbor"
 	}
 
-
 	// Run optimization with analytics
 	optimizeResponse, analyticsResponse := optimizer.OptimizeWithAnalytics(
 		req.Orders,
@@ -148,3 +149,91 @@ func OptimizeWithAnalytics(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// HybridSolveStream runs the hybrid solver and streams progress events using NDJSON.
+func HybridSolveStream(c *gin.Context) {
+	var req models.HybridSolveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if len(req.Orders) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No orders provided"})
+		return
+	}
+
+	if len(req.Shoppers) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No shoppers provided"})
+		return
+	}
+
+	writer := c.Writer
+	flusher, ok := writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Streaming unsupported"})
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/x-ndjson")
+	writer.Header().Set("Cache-Control", "no-cache")
+	writer.Header().Set("Connection", "keep-alive")
+
+	progressCh := make(chan models.HybridProgress, 32)
+	resultCh := make(chan models.HybridSolveResponse, 1)
+	errorCh := make(chan error, 1)
+
+	ctx := c.Request.Context()
+
+	go func() {
+		defer close(progressCh)
+		response, err := hybrid.Run(ctx, req.Orders, req.Shoppers, req.Options, func(progress models.HybridProgress) {
+			select {
+			case progressCh <- progress:
+			case <-ctx.Done():
+			}
+		})
+		if err != nil {
+			errorCh <- err
+			return
+		}
+		resultCh <- response
+	}()
+
+	encoder := json.NewEncoder(writer)
+
+	for {
+		select {
+		case progress, ok := <-progressCh:
+			if !ok {
+				progressCh = nil
+				continue
+			}
+			_ = encoder.Encode(gin.H{
+				"type": "progress",
+				"data": progress,
+			})
+			flusher.Flush()
+		case result := <-resultCh:
+			_ = encoder.Encode(gin.H{
+				"type": "completed",
+				"data": result,
+			})
+			flusher.Flush()
+			return
+		case err := <-errorCh:
+			_ = encoder.Encode(gin.H{
+				"type":  "error",
+				"error": err.Error(),
+			})
+			flusher.Flush()
+			return
+		case <-ctx.Done():
+			_ = encoder.Encode(gin.H{
+				"type":  "error",
+				"error": "request cancelled",
+			})
+			flusher.Flush()
+			return
+		}
+	}
+}

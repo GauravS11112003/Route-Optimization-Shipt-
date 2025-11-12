@@ -1,4 +1,4 @@
-# 🚀 Shipt Route Optimizer
+# 🚀 Multi-Strategy Routing Engine
 
 A full-stack web application for optimizing grocery delivery routes using intelligent assignment algorithms. Built with Go and React, this demo showcases Shipt's approach to logistics optimization.
 
@@ -124,7 +124,7 @@ You should see:
 ```
 ✓ Loaded .env file successfully
 ✓ OpenRouteService API Key loaded (120 chars)
-🚀 Shipt Route Optimizer Backend starting on :8080
+🚀 Multi-Strategy Routing Engine Backend starting on :8080
 ```
 
 **Note:** If you see "⚠ WARNING: OPENROUTE_API_KEY not found", the .env file wasn't loaded. Real routing will fallback to straight lines.

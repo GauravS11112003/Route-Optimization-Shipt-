@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Info, X, BarChart3, Route as RouteIcon, Zap, Settings, ExternalLink } from 'lucide-react';
 import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
 import SummaryPanel from './components/SummaryPanel';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
-import { getSampleData, optimizeWithAnalytics } from './api/optimizer';
+import { getSampleData, optimizeWithAnalytics, runHybridOptimization } from './api/optimizer';
 
 function App() {
     const [orders, setOrders] = useState([]);
@@ -23,6 +23,10 @@ function App() {
     const [algorithm, setAlgorithm] = useState('astar'); // 'nearest-neighbor' or 'astar'
     const [apiKey, setApiKey] = useState('');
     const [apiKeyInput, setApiKeyInput] = useState('');
+    const [hybridTimeline, setHybridTimeline] = useState([]);
+    const [hybridRunning, setHybridRunning] = useState(false);
+    const [hybridStats, setHybridStats] = useState(null);
+    const hybridAbortRef = useRef(null);
 
     // Load API key from localStorage on mount
     useEffect(() => {
@@ -94,6 +98,79 @@ function App() {
         }
     };
 
+    const handleHybridOptimize = async () => {
+        if (orders.length === 0 || shoppers.length === 0) {
+            setError('Please load sample data first.');
+            return;
+        }
+
+        if (useRealRoutes && !apiKey) {
+            setError('API key required for real routes. Click Settings to add your OpenRouteService API key.');
+            setShowSettings(true);
+            return;
+        }
+
+        const controller = new AbortController();
+        hybridAbortRef.current = controller;
+
+        setHybridRunning(true);
+        setLoading(true);
+        setError(null);
+        setHybridTimeline([]);
+        setHybridStats(null);
+
+        try {
+            const availableCores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency
+                ? navigator.hardwareConcurrency
+                : 4;
+            const result = await runHybridOptimization({
+                orders,
+                shoppers,
+                options: {
+                    iterations: 320,
+                    workers: Math.min(4, availableCores),
+                    candidatePool: 240,
+                    randomizedListSize: 3,
+                    destroyRate: 0.35,
+                    localSearchIterations: 60,
+                    emitIntervalMillis: 200,
+                    randomSeed: Date.now(),
+                    useRealRoutes,
+                    apiKey,
+                },
+                onProgress: (progress) => {
+                    setHybridTimeline((prev) => {
+                        const next = [...prev, progress];
+                        return next.length > 200 ? next.slice(next.length - 200) : next;
+                    });
+                },
+                signal: controller.signal,
+            });
+
+            setAssignments(result.optimization.assignments || []);
+            setStats(result.optimization);
+            setAnalytics(result.analytics);
+            setHybridStats(result.stats);
+            const geometries = result.analytics?.routeGeometries || [];
+            setRouteGeometries(geometries);
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                setError(err.message || 'Hybrid solver failed. Check backend logs.');
+                console.error(err);
+            }
+        } finally {
+            setHybridRunning(false);
+            setLoading(false);
+            hybridAbortRef.current = null;
+        }
+    };
+
+    const handleHybridCancel = () => {
+        if (hybridAbortRef.current) {
+            hybridAbortRef.current.abort();
+        }
+    };
+
     return (
         <div className="h-screen w-screen flex flex-col overflow-hidden">
             <motion.header
@@ -112,7 +189,7 @@ function App() {
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold text-gray-800">
-                                Shipt Route Optimizer
+                                Multi-Strategy Routing Engine
                             </h1>
                             <p className="text-sm text-gray-500">
                                 Intelligent delivery route planning
@@ -234,7 +311,12 @@ function App() {
                     assignments={assignments}
                     onLoadSampleData={handleLoadSampleData}
                     onOptimize={handleOptimize}
+                    onOptimizeHybrid={handleHybridOptimize}
+                    onCancelHybrid={handleHybridCancel}
                     loading={loading}
+                    hybridRunning={hybridRunning}
+                    hybridTimeline={hybridTimeline}
+                    hybridStats={hybridStats}
                 />
 
                 <div className="flex-1 relative z-0">
@@ -280,7 +362,7 @@ function App() {
                             <div className="flex items-start justify-between mb-6">
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                                        About Shipt Route Optimizer
+                                        About Multi-Strategy Routing Engine
                                     </h2>
                                     <div className="h-1 w-20 bg-shipt-green rounded"></div>
                                 </div>

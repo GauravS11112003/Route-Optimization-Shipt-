@@ -1,5 +1,5 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { Package, User, Clock, ShoppingCart, ChevronRight } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Package, User, Clock, ShoppingCart, ChevronRight, Zap, Activity, Cpu } from 'lucide-react';
 
 export default function Sidebar({
     orders,
@@ -7,8 +7,16 @@ export default function Sidebar({
     assignments,
     onLoadSampleData,
     onOptimize,
-    loading
+    onOptimizeHybrid,
+    onCancelHybrid,
+    loading,
+    hybridRunning,
+    hybridTimeline,
+    hybridStats
 }) {
+    const recentProgress = hybridTimeline.slice(-12).reverse();
+    const latestBest = hybridTimeline.length > 0 ? hybridTimeline[hybridTimeline.length - 1].bestDistance : null;
+
     return (
         <motion.div
             initial={{ x: -300, opacity: 0 }}
@@ -32,13 +40,105 @@ export default function Sidebar({
 
                     <button
                         onClick={onOptimize}
-                        disabled={loading || orders.length === 0}
+                        disabled={loading || hybridRunning || orders.length === 0}
                         className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                     >
                         {loading ? 'Optimizing...' : 'Optimize Routes'}
                     </button>
+
+                    <button
+                        onClick={onOptimizeHybrid}
+                        disabled={hybridRunning || orders.length === 0 || loading}
+                        className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                    >
+                        {hybridRunning ? 'Running Hybrid Solver...' : 'Hybrid Metaheuristic Solver'}
+                    </button>
+
+                    {hybridRunning && (
+                        <button
+                            onClick={onCancelHybrid}
+                            className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-semibold py-2 px-4 rounded-lg transition-all duration-200 border border-red-200"
+                        >
+                            Cancel Hybrid Run
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {(hybridTimeline.length > 0 || hybridStats) && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 }}
+                    className="p-6 border-b border-gray-200 bg-gradient-to-b from-purple-50/60 to-white"
+                >
+                    <div className="flex items-center gap-2 mb-3">
+                        <Zap className="w-5 h-5 text-purple-600" />
+                        <h3 className="font-semibold text-gray-800">
+                            Hybrid Solver Progress
+                        </h3>
+                    </div>
+
+                    {hybridStats && (
+                        <div className="grid grid-cols-2 gap-2 mb-4 text-xs text-gray-600">
+                            <div className="flex items-center gap-2 bg-white rounded-lg border border-purple-100 px-3 py-2">
+                                <Activity className="w-4 h-4 text-purple-500" />
+                                <div>
+                                    <p className="text-[11px] uppercase tracking-wide text-gray-400">Best Distance</p>
+                                    <p className="text-sm font-semibold text-gray-700 font-mono">
+                                        {latestBest !== null ? `${latestBest.toFixed(2)} km` : '—'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white rounded-lg border border-purple-100 px-3 py-2">
+                                <Cpu className="w-4 h-4 text-purple-500" />
+                                <div>
+                                    <p className="text-[11px] uppercase tracking-wide text-gray-400">Explored</p>
+                                    <p className="text-sm font-semibold text-gray-700">{hybridStats?.exploredSolutions} solutions</p>
+                                </div>
+                            </div>
+                            <div className="col-span-2 flex items-center justify-between bg-white rounded-lg border border-purple-100 px-3 py-2">
+                                <div className="text-[11px] uppercase tracking-wide text-gray-400">Runtime</div>
+                                <div className="text-sm font-semibold text-gray-700 font-mono">{hybridStats?.runtime}</div>
+                            </div>
+                            <div className="col-span-2 flex items-center justify-between bg-white rounded-lg border border-purple-100 px-3 py-2">
+                                <div className="text-[11px] uppercase tracking-wide text-gray-400">Accepted Improvements</div>
+                                <div className="text-sm font-semibold text-gray-700">{hybridStats?.acceptedImprovements}</div>
+                            </div>
+                            <div className="col-span-2 flex items-center justify-between bg-white rounded-lg border border-purple-100 px-3 py-2">
+                                <div className="text-[11px] uppercase tracking-wide text-gray-400">Best Iteration</div>
+                                <div className="text-sm font-semibold text-gray-700">{hybridStats?.bestIteration}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {recentProgress.length > 0 && (
+                        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                            {recentProgress.map((progress, idx) => (
+                                <div
+                                    key={`${progress.iteration}-${idx}-${progress.workerId}`}
+                                    className={`rounded-lg border px-3 py-2 text-xs transition-colors ${
+                                        progress.acceptedImprovement
+                                            ? 'border-purple-300 bg-purple-50/70 text-purple-700'
+                                            : 'border-gray-200 bg-white text-gray-600'
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-semibold">Iter {progress.iteration}</span>
+                                        <span className="font-mono text-[11px]">
+                                            Best {progress.bestDistance?.toFixed(2)} km
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-1 text-[11px]">
+                                        <span>Worker {progress.workerId}</span>
+                                        <span>Candidate {progress.candidateDistance?.toFixed(2)} km</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </motion.div>
+            )}
 
             {/* Shoppers Section */}
             {shoppers.length > 0 && (

@@ -13,18 +13,18 @@ import (
 func main() {
 	// Load .env file - try multiple locations
 	envLocations := []string{
-		".env",                    // Current directory
-		"../.env",                 // Parent directory (if running from cmd/)
+		".env",                           // Current directory
+		"../.env",                        // Parent directory (if running from cmd/)
 		filepath.Join("backend", ".env"), // From project root
 	}
-	
+
 	for _, envPath := range envLocations {
 		if err := godotenv.Load(envPath); err == nil {
 			log.Printf("Loaded .env file from: %s\n", envPath)
 			break
 		}
 	}
-	
+
 	r := gin.Default()
 
 	// Configure CORS for frontend
@@ -42,11 +42,11 @@ func main() {
 		apiGroup.GET("/sample-data", api.GetSampleData)
 		apiGroup.POST("/optimize", api.OptimizeRoutes)
 		apiGroup.POST("/optimize-analytics", api.OptimizeWithAnalytics)
+		apiGroup.POST("/optimize-hybrid-stream", api.HybridSolveStream)
 	}
 
-	log.Println("Shipt Route Optimizer Backend starting on :8080")
+	log.Println("Multi-Strategy Routing Engine Backend starting on :8080")
 	if err := r.Run(":8080"); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
-

@@ -1,6 +1,6 @@
 # 📁 Project Structure
 
-Complete overview of the Shipt Route Optimizer codebase.
+Complete overview of the Multi-Strategy Routing Engine codebase.
 
 ```
 shipt-route-optimizer/
